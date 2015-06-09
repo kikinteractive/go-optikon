@@ -17,7 +17,7 @@ type KeyNotFoundError struct {
 
 // Error implements error interface, stating that key was not found.
 func (e *KeyNotFoundError) Error() string {
-	return "key not found: " + e.key
+	return "key not found or not traversable: " + e.key
 }
 
 // Key returns the key that was missing.
