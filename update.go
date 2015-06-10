@@ -6,8 +6,8 @@ import (
 	"strconv"
 )
 
-// UpdateJSON will try to perform the operation identified by opType on the source object dataIn,
-// given traversal path and a json for a new/updated object.
+// UpdateJSON will try to perform the operation identified by opType on the source
+// object dataIn, given traversal path and a json for a new/updated object.
 func UpdateJSON(dataIn interface{}, path []string, dataJSON string, opType OpType) error {
 
 	ptrSrcVal := reflect.ValueOf(dataIn)
@@ -30,6 +30,8 @@ func UpdateJSON(dataIn interface{}, path []string, dataJSON string, opType OpTyp
 	}
 
 	// Otherwise we need to traverse into the first path element.
+
+	// Bail out if cannot traverse.
 	if !isTraversable(srcValType.Kind()) {
 		return &KeyNotTraversableError{path[0]}
 	}
@@ -70,10 +72,10 @@ func traverseStruct(srcVal reflect.Value, path []string, dataJSON string, opType
 					if fieldKind == reflect.Slice {
 						return UpdateJSON(srcVal.Field(i).Addr().Interface(), path, dataJSON, opType)
 					}
-					// Return error because we cannot create a struct field.
+					// We cannot create a struct field.
 					return &KeyExistsError{subPath}
 				} else if opType == DeleteOp {
-					// Return error because we cannot delete a struct field.
+					// We cannot delete a struct field.
 					return &OperationForbiddenError{key: subPath, keyType: srcValType, operation: opType}
 				}
 			}
@@ -81,9 +83,9 @@ func traverseStruct(srcVal reflect.Value, path []string, dataJSON string, opType
 			if isTraversable(fieldKind) {
 				if srcVal.Field(i).CanAddr() {
 					return UpdateJSON(srcVal.Field(i).Addr().Interface(), path[1:], dataJSON, opType)
-				} else { // map
-					return UpdateJSON(srcVal.Field(i).Interface(), path[1:], dataJSON, opType)
 				}
+				// Cannot address this field (a map)
+				return UpdateJSON(srcVal.Field(i).Interface(), path[1:], dataJSON, opType)
 			}
 		}
 	}
@@ -95,7 +97,7 @@ func traverseArraySlice(srcVal reflect.Value, path []string, dataJSON string, op
 	subPath := path[0]
 	if srcValType.Kind() == reflect.Slice && srcVal.IsNil() { // uninited slice
 		if opType == DeleteOp {
-			// Nothing to delete.
+			// Nothing to delete, bail out.
 			return &KeyNotFoundError{subPath}
 		}
 		// Otherwise, create an empty slice and continue.
@@ -122,9 +124,8 @@ func traverseArraySlice(srcVal reflect.Value, path []string, dataJSON string, op
 				// Alright, append and replace with appended slice.
 				srcVal.Set(reflect.Append(srcVal, sliceVal.Elem()))
 				return nil
-			} else {
-				return &OperationForbiddenError{key: subPath, keyType: srcValType, operation: opType}
 			}
+			return &OperationForbiddenError{key: subPath, keyType: srcValType, operation: opType}
 		} else if opType == DeleteOp {
 			return &OperationForbiddenError{key: subPath, keyType: srcValType, operation: opType}
 		}
@@ -138,7 +139,7 @@ func traverseMap(srcVal reflect.Value, path []string, dataJSON string, opType Op
 	subPathVal := reflect.ValueOf(subPath)
 	if srcVal.IsNil() { // uninited map
 		if opType == DeleteOp {
-			// Nothing to delete.
+			// Nothing to delete, bail out.
 			return &KeyNotFoundError{subPath}
 		}
 		// Otherwise, create an empty map and continue.
@@ -154,14 +155,14 @@ func traverseMap(srcVal reflect.Value, path []string, dataJSON string, opType Op
 					// DOES NOT GET HERE!!!!!! TEST!!!!!!!
 					return UpdateJSON(mapVal.Interface(), path, dataJSON, opType)
 				}
-				// Otherwise, we cannot create an existing key.
+				// We cannot create an existing key.
 				return &KeyExistsError{subPath}
 			} else if opType == DeleteOp {
 				// Alright, delete the entry and leave.
 				srcVal.SetMapIndex(subPathVal, reflect.Value{})
 				return nil
 			} else { // update
-				// Cannot set map entry value directly: "Set using unaddressable value".
+				// Cannot set map entry value directly (error: "Set using unaddressable value").
 				// Instead, create a new map value and fill it, then replace the old one.
 				newMapVal := reflect.New(srcValType.Elem())
 				// Update the newly created element.
@@ -176,18 +177,17 @@ func traverseMap(srcVal reflect.Value, path []string, dataJSON string, opType Op
 		// See if we can traverse into the value.
 		if isTraversable(elKind) {
 			// Drill down and update mapVal recursively.
-			// If the map element is not settable, create a new one, update and replace.
 			if mapVal.CanSet() {
 				return UpdateJSON(mapVal.Interface(), path[1:], dataJSON, opType)
-			} else {
-				newMapVal := reflect.New(srcValType.Elem())
-				newMapVal.Elem().Set(mapVal)
-				if err := UpdateJSON(newMapVal.Interface(), path[1:], dataJSON, opType); err != nil {
-					return err
-				}
-				srcVal.SetMapIndex(subPathVal, newMapVal.Elem())
-				return nil
 			}
+			// Otherwise, if the map element is not settable, create a new one, update and replace.
+			newMapVal := reflect.New(srcValType.Elem())
+			newMapVal.Elem().Set(mapVal)
+			if err := UpdateJSON(newMapVal.Interface(), path[1:], dataJSON, opType); err != nil {
+				return err
+			}
+			srcVal.SetMapIndex(subPathVal, newMapVal.Elem())
+			return nil
 		}
 	} else { // no such key in map
 		if len(path) == 1 { // last element in the path
@@ -201,6 +201,7 @@ func traverseMap(srcVal reflect.Value, path []string, dataJSON string, opType Op
 				if elType.Kind() == reflect.Map {
 					mapVal.Set(reflect.MakeMap(elType))
 				}
+				// TODO: MakeSlice?
 				// Update the newly created element.
 				if err := UpdateJSON(mapVal.Interface(), path[1:], dataJSON, opType); err != nil {
 					return err

@@ -5,7 +5,8 @@ import (
 	"strconv"
 )
 
-// Select will try to extract an internal part of dataIn identified by hierarchical path elements.
+// Select will try to extract an internal part of dataIn identified
+// by hierarchical path elements.
 func Select(dataIn interface{}, path []string) (partOut interface{}, err error) {
 
 	// Return myself if there's no subpath anymore (recursion termination).
@@ -19,6 +20,7 @@ func Select(dataIn interface{}, path []string) (partOut interface{}, err error) 
 	typ := reflect.TypeOf(dataIn)
 	val := reflect.ValueOf(dataIn)
 
+	// Bail out if cannot traverse.
 	if !isTraversable(typ.Kind()) {
 		err = &KeyNotTraversableError{subPath}
 		return
@@ -32,7 +34,8 @@ func Select(dataIn interface{}, path []string) (partOut interface{}, err error) 
 			return Select(mapVal.Interface(), path[1:])
 		}
 	case reflect.Struct:
-		// Iterate over object fields and see if there's a field whose json tag matches the first element in the path.
+		// Iterate over object fields and see if there's a field whose json tag
+		// matches the first element in the path.
 		for i := 0; i < typ.NumField(); i++ {
 			field := typ.Field(i)
 			tag := field.Tag.Get("json") // get json tag of this field
