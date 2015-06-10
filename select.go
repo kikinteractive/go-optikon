@@ -1,7 +1,6 @@
 package optikon
 
 import (
-	"fmt"
 	"reflect"
 	"strconv"
 )
@@ -15,11 +14,16 @@ func Select(dataIn interface{}, path []string) (partOut interface{}, err error) 
 		return
 	}
 
+	// Otherwise we need to traverse into the first path element.
 	subPath := path[0]
 	typ := reflect.TypeOf(dataIn)
 	val := reflect.ValueOf(dataIn)
 
-	// There's a subpath, so we need to drill down. See if the value is traversable.
+	if !isTraversable(typ.Kind()) {
+		err = &KeyNotTraversableError{subPath}
+		return
+	}
+
 	switch typ.Kind() {
 	case reflect.Map:
 		// Get the value from the map keyed by the first path element.
@@ -32,32 +36,29 @@ func Select(dataIn interface{}, path []string) (partOut interface{}, err error) 
 		for i := 0; i < typ.NumField(); i++ {
 			field := typ.Field(i)
 			tag := field.Tag.Get("json") // get json tag of this field
-			if tag == subPath {          // subpath matched
+			if tag == "" {
+				tag = field.Name // if no json tag found use field name
+			}
+			if tag == subPath { // subpath matched
 				return Select(val.Field(i).Interface(), path[1:])
 			}
 		}
 	case reflect.Ptr, reflect.Interface:
 		if !val.Elem().IsValid() { // cannot traverse further
-			err = fmt.Errorf("field referenced by [%s] is invalid pointer/interface", subPath)
+			err = &KeyNotTraversableError{subPath}
 			return
 		}
 		return Select(val.Elem().Interface(), path) // dereference and call recursively
 	case reflect.Array, reflect.Slice:
 		// Here subPath must be an integer and a valid array index.
-		i, err1 := strconv.Atoi(subPath)
-		if err1 != nil {
-			err = fmt.Errorf("path element [%s] must be an integer index into an array", subPath)
-			return
+		if i, err1 := strconv.Atoi(subPath); err1 == nil {
+			if i >= 0 && i < val.Len() { // valid index
+				return Select(val.Index(i).Interface(), path[1:])
+			}
 		}
-		if i >= 0 && i < val.Len() { // valid index
-			return Select(val.Index(i).Interface(), path[1:])
-		}
-	default:
-		err = fmt.Errorf("field referenced by [%s] must be traversable (struct/map/array/slice/ptr/interface), %s given", subPath, typ.Kind())
-		return
 	}
 
-	// subPath was not matched or could not traverse into the corresponding field.
+	// subPath was not matched.
 	err = &KeyNotFoundError{subPath}
 	return
 }

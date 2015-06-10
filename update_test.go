@@ -657,4 +657,112 @@ func TestUpdateDeep(t *testing.T) {
 		assert.EqualValues(t, &td1, td.PtrDeep.MapMapDeep["key3"]["key4"].PtrDeep)
 	}
 
+	err = UpdateJSON(td, []string{"ptrDeep", "mapMapPtrDeep", "key3", "key4", "ptrDeep"}, string(data), UpdateOp)
+	if assert.NoError(t, err) {
+		assert.EqualValues(t, &td1, td.PtrDeep.MapMapPtrDeep["key3"]["key4"].PtrDeep)
+	}
+
+}
+
+func TestCreate(t *testing.T) {
+	// TODO
+}
+
+func TestDeleteFails(t *testing.T) {
+	strVal1 := "strVal1"
+	strVal2 := "strVal2"
+	intVal := 5
+	mapVal := map[string]string{
+		"key1": strVal1,
+		"key2": strVal2,
+	}
+	sliceVal := []string{strVal1, strVal2}
+	td1 := TypeDeep{}
+	mapDeep := map[string]TypeDeep{
+		"key1": td1,
+		"key2": td1,
+	}
+	td := TypeDeep{
+		StrVal:    strVal1,
+		IntVal:    intVal,
+		MapVal:    mapVal,
+		PtrMapVal: &mapVal,
+		SliceVal:  sliceVal,
+		MapDeep:   mapDeep,
+	}
+
+	err := UpdateJSON(td, []string{"bogus"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"strVal"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &OperationForbiddenError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"strVal", "bogus"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"sliceVal"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &OperationForbiddenError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"sliceVal", "x"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"sliceVal", "10"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"sliceVal", "0"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &OperationForbiddenError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"mapVal", "bogus"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"ptrDeep"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &OperationForbiddenError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"mapDeep"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &OperationForbiddenError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"mapDeep", "key1", "bogus"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"mapDeep", "key1", "strVal"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &OperationForbiddenError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"mapDeep", "key1", "sliceVal"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &OperationForbiddenError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"mapDeep", "key1", "sliceVal", "0"}, "", DeleteOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	// IntfVal
+	// MapSliceIntfVal
+	// MapMapIntfVal
+
 }

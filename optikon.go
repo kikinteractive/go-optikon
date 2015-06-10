@@ -1,5 +1,10 @@
 package optikon
 
+import (
+	"fmt"
+	"reflect"
+)
+
 // OpType defines possible operation types.
 type OpType int
 
@@ -17,7 +22,7 @@ type KeyNotFoundError struct {
 
 // Error implements error interface, stating that key was not found.
 func (e *KeyNotFoundError) Error() string {
-	return "key not found or not traversable: " + e.key
+	return "key not found: " + e.key
 }
 
 // Key returns the key that was missing.
@@ -38,4 +43,54 @@ func (e *KeyExistsError) Error() string {
 // Key returns the key that was duplicate.
 func (e *KeyExistsError) Key() string {
 	return e.key
+}
+
+// KeyNotTraversableError is returned when trying to access a missing key.
+type KeyNotTraversableError struct {
+	key string
+}
+
+// Error implements error interface, stating that key was not found.
+func (e *KeyNotTraversableError) Error() string {
+	return "key not traversable: " + e.key
+}
+
+// Key returns the key that was missing.
+func (e *KeyNotTraversableError) Key() string {
+	return e.key
+}
+
+// OperationForbiddenError is returned when trying to apply a forbidden operation.
+type OperationForbiddenError struct {
+	key       string
+	keyType   reflect.Type
+	operation OpType
+}
+
+// Error implements error interface, stating that key was not found.
+func (e *OperationForbiddenError) Error() string {
+	return fmt.Sprintf("forbidden operation %s on key %s of type %s", e.operation, e.key, e.keyType)
+}
+
+// Key returns the key that was operated on.
+func (e *OperationForbiddenError) Key() string {
+	return e.key
+}
+
+// KeyType returns the key type that was operated on.
+func (e *OperationForbiddenError) KeyType() reflect.Type {
+	return e.keyType
+}
+
+// Key returns the operation that was forbidden.
+func (e *OperationForbiddenError) Operation() OpType {
+	return e.operation
+}
+
+// This helper function determines whether this fieldKind is traversable, i.e.
+// can be drilled down into.
+func isTraversable(fieldKind reflect.Kind) bool {
+	return fieldKind == reflect.Map || fieldKind == reflect.Struct ||
+		fieldKind == reflect.Array || fieldKind == reflect.Slice ||
+		fieldKind == reflect.Interface || fieldKind == reflect.Ptr
 }

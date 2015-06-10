@@ -557,3 +557,119 @@ func TestSelectDeep(t *testing.T) {
 		assert.EqualValues(t, strVal1, partOut)
 	}
 }
+
+func TestSelectFails(t *testing.T) {
+	strVal1 := "strVal1"
+	strVal2 := "strVal2"
+	mapVal := map[string]string{
+		"key1": strVal1,
+		"key2": strVal2,
+	}
+	mapPtrVal := map[string]*string{
+		"key1": &strVal1,
+		"key2": &strVal2,
+	}
+	mapMapVal := map[string]map[string]string{
+		"key1": mapVal,
+		"key2": mapVal,
+	}
+	mapPtrMapVal := map[string]*map[string]string{
+		"key1": &mapVal,
+		"key2": &mapVal,
+	}
+	sliceVal := []string{strVal1, strVal2}
+	mapSliceVal := map[string][]string{
+		"key1": sliceVal,
+		"key2": sliceVal,
+	}
+	arrVal := [2]string{strVal1, strVal2}
+	mapArrVal := map[string][2]string{
+		"key1": arrVal,
+		"key2": arrVal,
+	}
+	mapPtrSliceVal := map[string]*[]string{
+		"key1": &sliceVal,
+		"key2": &sliceVal,
+	}
+	slicePtrVal := []*string{&strVal1, &strVal2}
+	sliceMapVal := []map[string]string{mapVal, mapVal}
+	slicePtrMapVal := []*map[string]string{&mapVal, &mapVal}
+	sliceSliceVal := [][]string{sliceVal, sliceVal}
+	slicePtrSliceVal := []*[]string{&sliceVal, &sliceVal}
+
+	td := &TypeDeep{
+		StrVal:           strVal1,
+		IntVal:           5,
+		SliceVal:         sliceVal,
+		ArrVal:           arrVal,
+		SlicePtrVal:      slicePtrVal,
+		SliceMapVal:      sliceMapVal,
+		SlicePtrMapVal:   slicePtrMapVal,
+		SliceSliceVal:    sliceSliceVal,
+		SlicePtrSliceVal: slicePtrSliceVal,
+		MapVal:           mapVal,
+		PtrMapVal:        &mapVal,
+		MapPtrVal:        mapPtrVal,
+		MapMapVal:        mapMapVal,
+		MapPtrMapVal:     mapPtrMapVal,
+		MapSliceVal:      mapSliceVal,
+		MapArrVal:        mapArrVal,
+		MapPtrSliceVal:   mapPtrSliceVal,
+	}
+
+	_, err := Select(td, []string{"bogus"})
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	_, err = Select(td, []string{"strVal", "dummy"})
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotTraversableError{}, err)
+	}
+
+	_, err = Select(td, []string{"sliceVal", "x"})
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	_, err = Select(td, []string{"sliceVal", "10"})
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	_, err = Select(td, []string{"sliceMapVal", "0", "dummy"})
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	_, err = Select(td, []string{"sliceSliceVal", "0", "x"})
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	_, err = Select(td, []string{"sliceSliceVal", "0", "10"})
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	_, err = Select(td, []string{"mapMapVal", "key1", "x"})
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	_, err = Select(td, []string{"mapMapVal", "key1", "key1", "strVal", "dummy"})
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotTraversableError{}, err)
+	}
+
+	_, err = Select(td, []string{"mapSliceVal", "key1", "x"})
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	_, err = Select(td, []string{"mapSliceVal", "key1", "10"})
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+}
