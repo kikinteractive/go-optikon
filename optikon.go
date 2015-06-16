@@ -19,3 +19,10 @@ func isTraversable(fieldKind reflect.Kind) bool {
 		fieldKind == reflect.Array || fieldKind == reflect.Slice ||
 		fieldKind == reflect.Interface || fieldKind == reflect.Ptr
 }
+
+func IndirectType(t reflect.Type) reflect.Type {
+	if isTraversable(t.Kind()) {
+		return t.Elem()
+	}
+	return t
+}

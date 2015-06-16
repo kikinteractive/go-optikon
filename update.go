@@ -48,8 +48,6 @@ func UpdateJSON(dataIn interface{}, path []string, dataJSON string, opType OpTyp
 		return UpdateJSON(srcVal.Interface(), path, dataJSON, opType)
 	}
 
-	// path[0] not traversable.
-	//return &KeyNotFoundError{path[0]}
 	return nil
 }
 
@@ -59,18 +57,22 @@ func traverseStruct(srcVal reflect.Value, path []string, dataJSON string, opType
 	// Iterate over object fields and see if there's a field whose json tag
 	// matches the first element in the path.
 	for i := 0; i < srcValType.NumField(); i++ {
-		field := srcValType.Field(i)
-		fieldKind := field.Type.Kind()
-		tag := field.Tag.Get("json")
+		fieldVal := srcVal.Field(i)
+		fieldMeta := srcValType.Field(i)
+		fieldKind := fieldMeta.Type.Kind()
+		tag := fieldMeta.Tag.Get("json")
 		if tag == "" {
-			tag = field.Name // if no json tag found use field name
+			tag = fieldMeta.Name // if no json tag found use field name
 		}
 		if tag == subPath { // matches the first path element
 			if len(path) == 1 { // last element in the path
 				if opType == CreateOp {
 					// We can only append to a slice.
 					if fieldKind == reflect.Slice {
-						return UpdateJSON(srcVal.Field(i).Addr().Interface(), path, dataJSON, opType)
+						if fieldVal.CanAddr() {
+							return UpdateJSON(fieldVal.Addr().Interface(), path[1:], dataJSON, opType)
+						}
+						return UpdateJSON(fieldVal.Interface(), path[1:], dataJSON, opType)
 					}
 					// We cannot create a struct field.
 					return &KeyExistsError{subPath}
@@ -81,11 +83,11 @@ func traverseStruct(srcVal reflect.Value, path []string, dataJSON string, opType
 			}
 			// Otherwise see if we can traverse into the value.
 			if isTraversable(fieldKind) {
-				if srcVal.Field(i).CanAddr() {
-					return UpdateJSON(srcVal.Field(i).Addr().Interface(), path[1:], dataJSON, opType)
+				if fieldVal.CanAddr() {
+					return UpdateJSON(fieldVal.Addr().Interface(), path[1:], dataJSON, opType)
 				}
 				// Cannot address this field (a map)
-				return UpdateJSON(srcVal.Field(i).Interface(), path[1:], dataJSON, opType)
+				return UpdateJSON(fieldVal.Interface(), path[1:], dataJSON, opType)
 			}
 		}
 	}
@@ -96,14 +98,14 @@ func traverseArraySlice(srcVal reflect.Value, path []string, dataJSON string, op
 	srcValType := srcVal.Type()
 	subPath := path[0]
 	if srcValType.Kind() == reflect.Slice && srcVal.IsNil() { // uninited slice
-		if opType == DeleteOp {
-			// Nothing to delete, bail out.
+		if opType == DeleteOp || opType == UpdateOp {
+			// Nothing to delete or update, bail out.
 			return &KeyNotFoundError{subPath}
 		}
-		// Otherwise, create an empty slice and continue.
+		// Create an empty slice and continue.
 		srcVal.Set(reflect.MakeSlice(srcValType, 0, 1))
 	}
-	// Here subPath must be an integer and a valid array index.
+	// Check that subPath is an integer and a valid array index.
 	var i int
 	var err error
 	if i, err = strconv.Atoi(subPath); err != nil {
@@ -138,7 +140,7 @@ func traverseMap(srcVal reflect.Value, path []string, dataJSON string, opType Op
 	subPath := path[0]
 	subPathVal := reflect.ValueOf(subPath)
 	if srcVal.IsNil() { // uninited map
-		if opType == DeleteOp {
+		if opType == DeleteOp || opType == UpdateOp {
 			// Nothing to delete, bail out.
 			return &KeyNotFoundError{subPath}
 		}
@@ -169,7 +171,7 @@ func traverseMap(srcVal reflect.Value, path []string, dataJSON string, opType Op
 				if err := UpdateJSON(newMapVal.Interface(), path[1:], dataJSON, opType); err != nil {
 					return err
 				}
-				// Alright, update the original map with the new element.
+				// Replace the original map with the new element.
 				srcVal.SetMapIndex(subPathVal, newMapVal.Elem())
 				return nil
 			}
@@ -196,18 +198,13 @@ func traverseMap(srcVal reflect.Value, path []string, dataJSON string, opType Op
 			if opType == CreateOp {
 				elType := srcValType.Elem()
 				// Create a new map element.
-				mapVal := reflect.New(elType.Elem())
-				// Create a map if needed.
-				if elType.Kind() == reflect.Map {
-					mapVal.Set(reflect.MakeMap(elType))
-				}
-				// TODO: MakeSlice?
+				mapVal := reflect.New(elType)
 				// Update the newly created element.
 				if err := UpdateJSON(mapVal.Interface(), path[1:], dataJSON, opType); err != nil {
 					return err
 				}
 				// Alright, update the original map with the new element.
-				srcVal.SetMapIndex(subPathVal, mapVal)
+				srcVal.SetMapIndex(subPathVal, mapVal.Elem())
 				return nil
 			}
 		}

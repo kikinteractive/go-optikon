@@ -668,8 +668,187 @@ func TestUpdateDeep(t *testing.T) {
 
 }
 
-func TestCreate(t *testing.T) {
-	// TODO
+func TestUpdateFails(t *testing.T) {
+	strVal1 := "strVal1"
+	strVal2 := "strVal2"
+	mapVal := map[string]string{
+		"key1": strVal1,
+		"key2": strVal2,
+	}
+	td := TypeDeep{}
+
+	err := UpdateJSON(td, []string{"bogus"}, "", UpdateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"strVal", "bogus"}, "", UpdateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"strVal"}, "strVal", UpdateOp)
+	if assert.Error(t, err) {
+		//assert.IsType(t, &OperationForbiddenError{}, err) // TODO
+	}
+
+	err = UpdateJSON(td, []string{"sliceVal", "x"}, "", UpdateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"sliceVal", "10"}, "", UpdateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	// TODO: update on empty map results in keynotfound error? Or results in create?
+	//err = UpdateJSON(td, []string{"mapVal"}, `{"key1":"bogus"}`, UpdateOp)
+	//if assert.Error(t, err) {
+	//	assert.IsType(t, &KeyNotFoundError{}, err)
+	//}
+
+	err = UpdateJSON(td, []string{"mapVal", "bogus"}, "", UpdateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	td.MapVal = mapVal
+	err = UpdateJSON(td, []string{"mapVal", "key1"}, "bogus", UpdateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &json.SyntaxError{}, err)
+	}
+
+}
+
+func TestCreateFails(t *testing.T) {
+	td := &TypeDeep{}
+
+	err := UpdateJSON(td, []string{"bogus"}, "", CreateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"strVal"}, "", CreateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyExistsError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"strVal", "bogus"}, "", CreateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"mapVal", "new"}, "bogus", CreateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &json.SyntaxError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"sliceVal", "x"}, "", CreateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err) // TODO: bad key results in KeyNotFoundError?
+	}
+
+}
+
+func TestCreateSuccessful(t *testing.T) {
+	strVal1 := "strVal1"
+	strVal2 := "strVal2"
+	mapVal := map[string]string{
+		"key1": strVal1,
+		"key2": strVal2,
+	}
+	sliceVal := []string{strVal1, strVal2}
+	arrVal := [2]string{strVal1, strVal2}
+	sliceMapVal := []map[string]string{mapVal, mapVal}
+	sliceSliceVal := [][]string{sliceVal, sliceVal}
+	sliceIntfVal := []interface{}{strVal1, 5.5}
+	var intfVal interface{} = sliceIntfVal
+
+	td := &TypeDeep{}
+
+	// One level.
+
+	data, _ := json.Marshal(sliceVal)
+	err := UpdateJSON(td, []string{"sliceVal"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.EqualValues(t, sliceVal, td.SliceVal)
+	}
+
+	err = UpdateJSON(td, []string{"slicePtrVal"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, &sliceVal[0], td.SlicePtrVal[0])
+		assert.Equal(t, &sliceVal[1], td.SlicePtrVal[1])
+	}
+
+	data, _ = json.Marshal(sliceMapVal)
+	err = UpdateJSON(td, []string{"sliceMapVal"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, sliceMapVal[0], td.SliceMapVal[0])
+		assert.Equal(t, sliceMapVal[1], td.SliceMapVal[1])
+	}
+
+	err = UpdateJSON(td, []string{"slicePtrMapVal"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, &sliceMapVal[0], td.SlicePtrMapVal[0])
+		assert.Equal(t, &sliceMapVal[1], td.SlicePtrMapVal[1])
+	}
+
+	data, _ = json.Marshal(sliceSliceVal)
+	err = UpdateJSON(td, []string{"sliceSliceVal"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, sliceSliceVal[0], td.SliceSliceVal[0])
+		assert.Equal(t, sliceSliceVal[1], td.SliceSliceVal[1])
+	}
+
+	err = UpdateJSON(td, []string{"slicePtrSliceVal"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, &sliceSliceVal[0], td.SlicePtrSliceVal[0])
+		assert.Equal(t, &sliceSliceVal[1], td.SlicePtrSliceVal[1])
+	}
+
+	data, _ = json.Marshal(sliceIntfVal)
+	err = UpdateJSON(td, []string{"sliceIntfVal"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, sliceIntfVal[0], td.SliceIntfVal[0])
+		assert.Equal(t, sliceIntfVal[1], td.SliceIntfVal[1])
+	}
+
+	// Two levels.
+
+	data, _ = json.Marshal(mapVal)
+	err = UpdateJSON(td, []string{"mapMapVal", "new"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.EqualValues(t, mapVal, td.MapMapVal["new"])
+	}
+
+	err = UpdateJSON(td, []string{"mapPtrMapVal", "new"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.EqualValues(t, &mapVal, td.MapPtrMapVal["new"])
+	}
+
+	data, _ = json.Marshal(sliceVal)
+	err = UpdateJSON(td, []string{"mapSliceVal", "new"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.EqualValues(t, sliceVal, td.MapSliceVal["new"])
+	}
+
+	err = UpdateJSON(td, []string{"mapPtrSliceVal", "new"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.EqualValues(t, &sliceVal, td.MapPtrSliceVal["new"])
+	}
+
+	err = UpdateJSON(td, []string{"mapArrVal", "new"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.EqualValues(t, arrVal, td.MapArrVal["new"])
+	}
+
+	data, _ = json.Marshal(intfVal)
+	err = UpdateJSON(td, []string{"mapIntfVal", "new"}, string(data), CreateOp)
+	if assert.NoError(t, err) {
+		assert.EqualValues(t, intfVal, td.MapIntfVal["new"])
+	}
+
 }
 
 func TestDeleteFails(t *testing.T) {
@@ -686,7 +865,7 @@ func TestDeleteFails(t *testing.T) {
 		"key1": td1,
 		"key2": td1,
 	}
-	td := TypeDeep{
+	td := &TypeDeep{
 		StrVal:    strVal1,
 		IntVal:    intVal,
 		MapVal:    mapVal,
