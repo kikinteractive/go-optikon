@@ -7,12 +7,11 @@ import (
 
 // Select will try to extract an internal part of dataIn identified
 // by hierarchical path elements.
-func Select(dataIn interface{}, path []string) (partOut interface{}, err error) {
+func Select(dataIn interface{}, path []string) (interface{}, error) {
 
 	// Return myself if there's no subpath anymore (recursion termination).
 	if len(path) == 0 {
-		partOut = dataIn
-		return
+		return dataIn, nil
 	}
 
 	// Otherwise we need to traverse into the first path element.
@@ -22,8 +21,7 @@ func Select(dataIn interface{}, path []string) (partOut interface{}, err error) 
 
 	// Bail out if cannot traverse.
 	if !isTraversable(typ.Kind()) {
-		err = &KeyNotTraversableError{subPath}
-		return
+		return nil, &KeyNotTraversableError{subPath}
 	}
 
 	switch typ.Kind() {
@@ -47,11 +45,9 @@ func Select(dataIn interface{}, path []string) (partOut interface{}, err error) 
 			}
 		}
 	case reflect.Ptr, reflect.Interface:
-		if !val.Elem().IsValid() { // cannot traverse further
-			err = &KeyNotTraversableError{subPath}
-			return
+		if val.Elem().IsValid() {
+			return Select(val.Elem().Interface(), path) // dereference and call again
 		}
-		return Select(val.Elem().Interface(), path) // dereference and call recursively
 	case reflect.Array, reflect.Slice:
 		// Here subPath must be an integer and a valid array index.
 		if i, err1 := strconv.Atoi(subPath); err1 == nil {
@@ -62,6 +58,5 @@ func Select(dataIn interface{}, path []string) (partOut interface{}, err error) 
 	}
 
 	// subPath was not matched.
-	err = &KeyNotFoundError{subPath}
-	return
+	return nil, &KeyNotFoundError{subPath}
 }

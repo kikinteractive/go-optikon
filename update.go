@@ -8,8 +8,7 @@ import (
 
 // UpdateJSON will try to perform the operation identified by opType on the source
 // object dataIn, given traversal path and a json for a new/updated object.
-func UpdateJSON(dataIn interface{}, path []string, dataJSON string, opType OpType) error {
-
+func UpdateJSON(dataIn interface{}, path []string, dataJSON json.RawMessage, opType OpType) error {
 	ptrSrcVal := reflect.ValueOf(dataIn)
 	srcVal := reflect.Indirect(ptrSrcVal)
 	srcValType := srcVal.Type()
@@ -21,7 +20,7 @@ func UpdateJSON(dataIn interface{}, path []string, dataJSON string, opType OpTyp
 		// Create a suitable concrete object to unmarshal to.
 		dstVal := reflect.New(srcValType)
 		// Try to unmarshal.
-		if err := json.Unmarshal([]byte(dataJSON), dstVal.Interface()); err != nil {
+		if err := json.Unmarshal(dataJSON, dstVal.Interface()); err != nil {
 			return err
 		}
 		// Unmarshalled successfully, update the source object.
@@ -47,11 +46,10 @@ func UpdateJSON(dataIn interface{}, path []string, dataJSON string, opType OpTyp
 		// srcVal already dereferenced, just call recursively.
 		return UpdateJSON(srcVal.Interface(), path, dataJSON, opType)
 	}
-
 	return nil
 }
 
-func traverseStruct(srcVal reflect.Value, path []string, dataJSON string, opType OpType) error {
+func traverseStruct(srcVal reflect.Value, path []string, dataJSON json.RawMessage, opType OpType) error {
 	srcValType := srcVal.Type()
 	subPath := path[0]
 	// Iterate over object fields and see if there's a field whose json tag
@@ -69,10 +67,7 @@ func traverseStruct(srcVal reflect.Value, path []string, dataJSON string, opType
 				if opType == CreateOp {
 					// We can only append to a slice.
 					if fieldKind == reflect.Slice {
-						if fieldVal.CanAddr() {
-							return UpdateJSON(fieldVal.Addr().Interface(), path[1:], dataJSON, opType)
-						}
-						return UpdateJSON(fieldVal.Interface(), path[1:], dataJSON, opType)
+						return UpdateJSON(fieldVal.Addr().Interface(), path[1:], dataJSON, opType)
 					}
 					// We cannot create a struct field.
 					return &KeyExistsError{subPath}
@@ -94,7 +89,7 @@ func traverseStruct(srcVal reflect.Value, path []string, dataJSON string, opType
 	return &KeyNotFoundError{subPath}
 }
 
-func traverseArraySlice(srcVal reflect.Value, path []string, dataJSON string, opType OpType) error {
+func traverseArraySlice(srcVal reflect.Value, path []string, dataJSON json.RawMessage, opType OpType) error {
 	srcValType := srcVal.Type()
 	subPath := path[0]
 	if srcValType.Kind() == reflect.Slice && srcVal.IsNil() { // uninited slice
@@ -135,7 +130,7 @@ func traverseArraySlice(srcVal reflect.Value, path []string, dataJSON string, op
 	return UpdateJSON(srcVal.Index(i).Addr().Interface(), path[1:], dataJSON, opType)
 }
 
-func traverseMap(srcVal reflect.Value, path []string, dataJSON string, opType OpType) error {
+func traverseMap(srcVal reflect.Value, path []string, dataJSON json.RawMessage, opType OpType) error {
 	srcValType := srcVal.Type()
 	subPath := path[0]
 	subPathVal := reflect.ValueOf(subPath)
@@ -179,10 +174,7 @@ func traverseMap(srcVal reflect.Value, path []string, dataJSON string, opType Op
 		// See if we can traverse into the value.
 		if isTraversable(elKind) {
 			// Drill down and update mapVal recursively.
-			if mapVal.CanSet() {
-				return UpdateJSON(mapVal.Interface(), path[1:], dataJSON, opType)
-			}
-			// Otherwise, if the map element is not settable, create a new one, update and replace.
+			// The map element is not settable, create a new one, update and replace.
 			newMapVal := reflect.New(srcValType.Elem())
 			newMapVal.Elem().Set(mapVal)
 			if err := UpdateJSON(newMapVal.Interface(), path[1:], dataJSON, opType); err != nil {

@@ -672,4 +672,9 @@ func TestSelectFails(t *testing.T) {
 		assert.IsType(t, &KeyNotFoundError{}, err)
 	}
 
+	_, err = Select(td, []string{"ptrDeep", "strVal"})
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyNotFoundError{}, err)
+	}
+
 }
