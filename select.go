@@ -19,11 +19,6 @@ func Select(dataIn interface{}, path []string) (interface{}, error) {
 	typ := reflect.TypeOf(dataIn)
 	val := reflect.ValueOf(dataIn)
 
-	// Bail out if cannot traverse.
-	if !isTraversable(typ.Kind()) {
-		return nil, &KeyNotTraversableError{subPath}
-	}
-
 	switch typ.Kind() {
 	case reflect.Map:
 		// Get the value from the map keyed by the first path element.
@@ -55,6 +50,8 @@ func Select(dataIn interface{}, path []string) (interface{}, error) {
 				return Select(val.Index(i).Interface(), path[1:])
 			}
 		}
+	default:
+		return nil, &KeyNotTraversableError{subPath}
 	}
 
 	// subPath was not matched.

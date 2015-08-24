@@ -30,11 +30,6 @@ func UpdateJSON(dataIn interface{}, path []string, dataJSON json.RawMessage, opT
 
 	// Otherwise we need to traverse into the first path element.
 
-	// Bail out if cannot traverse.
-	if !isTraversable(srcValType.Kind()) {
-		return &KeyNotTraversableError{path[0]}
-	}
-
 	switch srcValType.Kind() {
 	case reflect.Map:
 		return traverseMap(srcVal, path, dataJSON, opType)
@@ -45,8 +40,9 @@ func UpdateJSON(dataIn interface{}, path []string, dataJSON json.RawMessage, opT
 	case reflect.Ptr, reflect.Interface:
 		// srcVal already dereferenced, just call recursively.
 		return UpdateJSON(srcVal.Interface(), path, dataJSON, opType)
+	default:
+		return &KeyNotTraversableError{path[0]}
 	}
-	return nil
 }
 
 func traverseStruct(srcVal reflect.Value, path []string, dataJSON json.RawMessage, opType OpType) error {
@@ -76,14 +72,11 @@ func traverseStruct(srcVal reflect.Value, path []string, dataJSON json.RawMessag
 					return &OperationForbiddenError{key: subPath, keyType: srcValType, operation: opType}
 				}
 			}
-			// Otherwise see if we can traverse into the value.
-			if isTraversable(fieldKind) {
-				if fieldVal.CanAddr() {
-					return UpdateJSON(fieldVal.Addr().Interface(), path[1:], dataJSON, opType)
-				}
-				// Cannot address this field (a map)
-				return UpdateJSON(fieldVal.Interface(), path[1:], dataJSON, opType)
+			if fieldVal.CanAddr() {
+				return UpdateJSON(fieldVal.Addr().Interface(), path[1:], dataJSON, opType)
 			}
+			// Try to update not addressable field directly.
+			return UpdateJSON(fieldVal.Interface(), path[1:], dataJSON, opType)
 		}
 	}
 	return &KeyNotFoundError{subPath}
@@ -149,7 +142,6 @@ func traverseMap(srcVal reflect.Value, path []string, dataJSON json.RawMessage, 
 		if len(path) == 1 { // last element in the path
 			if opType == CreateOp {
 				if elKind == reflect.Slice {
-					// DOES NOT GET HERE!!!!!! TEST!!!!!!!
 					return UpdateJSON(mapVal.Interface(), path, dataJSON, opType)
 				}
 				// We cannot create an existing key.
@@ -159,7 +151,7 @@ func traverseMap(srcVal reflect.Value, path []string, dataJSON json.RawMessage, 
 				srcVal.SetMapIndex(subPathVal, reflect.Value{})
 				return nil
 			} else { // update
-				// Cannot set map entry value directly (error: "Set using unaddressable value").
+				// Cannot set map entry value directly.
 				// Instead, create a new map value and fill it, then replace the old one.
 				newMapVal := reflect.New(srcValType.Elem())
 				// Update the newly created element.
@@ -171,18 +163,15 @@ func traverseMap(srcVal reflect.Value, path []string, dataJSON json.RawMessage, 
 				return nil
 			}
 		}
-		// See if we can traverse into the value.
-		if isTraversable(elKind) {
-			// Drill down and update mapVal recursively.
-			// The map element is not settable, create a new one, update and replace.
-			newMapVal := reflect.New(srcValType.Elem())
-			newMapVal.Elem().Set(mapVal)
-			if err := UpdateJSON(newMapVal.Interface(), path[1:], dataJSON, opType); err != nil {
-				return err
-			}
-			srcVal.SetMapIndex(subPathVal, newMapVal.Elem())
-			return nil
+		// More than one path element. Drill down and update mapVal recursively.
+		// The map element is not settable, create a new one, update and replace.
+		newMapVal := reflect.New(srcValType.Elem())
+		newMapVal.Elem().Set(mapVal)
+		if err := UpdateJSON(newMapVal.Interface(), path[1:], dataJSON, opType); err != nil {
+			return err
 		}
+		srcVal.SetMapIndex(subPathVal, newMapVal.Elem())
+		return nil
 	} else { // no such key in map
 		if len(path) == 1 { // last element in the path
 			// On this stage, we can only create a new map entry.

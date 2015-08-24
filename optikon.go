@@ -1,21 +1,18 @@
 package optikon
 
-import "reflect"
-
 // OpType defines possible operation types.
 type OpType int
 
-// OpType enumeration.
+// OpType enumerates available operation types.
 const (
-	CreateOp OpType = iota
+	CreateOp OpType = iota + 1
 	UpdateOp
 	DeleteOp
 )
 
-// This helper function determines whether this fieldKind is traversable, i.e.
-// can be drilled down into.
-func isTraversable(fieldKind reflect.Kind) bool {
-	return fieldKind == reflect.Map || fieldKind == reflect.Struct ||
-		fieldKind == reflect.Array || fieldKind == reflect.Slice ||
-		fieldKind == reflect.Interface || fieldKind == reflect.Ptr
+// OpNames provides readable names for operation types.
+var OpNames = map[OpType]string{
+	CreateOp: "Create",
+	UpdateOp: "Update",
+	DeleteOp: "Delete",
 }

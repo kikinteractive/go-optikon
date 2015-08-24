@@ -7,16 +7,67 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUpdatePrimitive(t *testing.T) {
-	//td := &TypeDeep{
-	//	StrVal: "strVal",
-	//	IntVal: 5,
-	//}
+func TestCreatePrimitive(t *testing.T) {
+	strVal := "strVal1"
+	//intVal := 5
+	td := &TypeDeep{}
 
-	//err := UpdateJSON(td, []string{"strVal"}, "strVal1", UpdateOp)
-	//if assert.NoError(t, err) {
-	//	assert.Equal(t, "strVal1", td.StrVal)
-	//}
+	data, _ := json.Marshal(strVal)
+	err := UpdateJSON(td, []string{"strVal"}, data, CreateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyExistsError{}, err)
+	}
+
+	err = UpdateJSON(td, []string{"mapVal", "key1"}, data, CreateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, strVal, td.MapVal["key1"])
+	}
+
+}
+
+func TestUpdatePrimitive(t *testing.T) {
+	strVal1 := "strVal1"
+	strVal2 := "strVal2"
+	intVal1 := 5
+	intVal2 := 15
+	td := &TypeDeep{
+		StrVal: strVal1,
+		IntVal: intVal1,
+		MapVal: map[string]string{
+			"key1": strVal1,
+		},
+		MapIntVal: map[string]int{
+			"key1": intVal1,
+		},
+		SliceVal: []string{strVal1},
+	}
+
+	data, _ := json.Marshal(strVal2)
+	err := UpdateJSON(td, []string{"strVal"}, data, UpdateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, strVal2, td.StrVal)
+	}
+
+	err = UpdateJSON(td, []string{"mapVal", "key1"}, data, UpdateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, strVal2, td.MapVal["key1"])
+	}
+
+	err = UpdateJSON(td, []string{"sliceVal", "0"}, data, UpdateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, strVal2, td.SliceVal[0])
+	}
+
+	data, _ = json.Marshal(intVal2)
+	err = UpdateJSON(td, []string{"intVal"}, data, UpdateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, intVal2, td.IntVal)
+	}
+
+	err = UpdateJSON(td, []string{"mapIntVal", "key1"}, data, UpdateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, intVal2, td.MapIntVal["key1"])
+	}
 }
 
 func TestUpdateMap(t *testing.T) {
@@ -135,15 +186,16 @@ func TestUpdateSlice(t *testing.T) {
 
 	td := &TypeDeep{}
 
-	data, _ := json.Marshal(sliceVal)
-	err := UpdateJSON(td, []string{"sliceVal"}, data, UpdateOp)
-	if assert.NoError(t, err) {
-		assert.EqualValues(t, sliceVal, td.SliceVal)
-	}
-
-	err = UpdateJSON(td, []string{"arrVal"}, data, UpdateOp)
+	data, _ := json.Marshal(arrVal)
+	err := UpdateJSON(td, []string{"arrVal"}, data, UpdateOp)
 	if assert.NoError(t, err) {
 		assert.EqualValues(t, arrVal, td.ArrVal)
+	}
+
+	data, _ = json.Marshal(sliceVal)
+	err = UpdateJSON(td, []string{"sliceVal"}, data, UpdateOp)
+	if assert.NoError(t, err) {
+		assert.EqualValues(t, sliceVal, td.SliceVal)
 	}
 
 	err = UpdateJSON(td, []string{"slicePtrVal"}, data, UpdateOp)
@@ -670,7 +722,7 @@ func TestUpdateFails(t *testing.T) {
 
 	err = UpdateJSON(td, []string{"strVal", "bogus"}, nil, UpdateOp)
 	if assert.Error(t, err) {
-		assert.IsType(t, &KeyNotFoundError{}, err)
+		assert.IsType(t, &KeyNotTraversableError{}, err)
 	}
 
 	err = UpdateJSON(td, []string{"strVal"}, json.RawMessage("strVal"), UpdateOp)
@@ -722,7 +774,7 @@ func TestCreateFails(t *testing.T) {
 
 	err = UpdateJSON(td, []string{"strVal", "bogus"}, nil, CreateOp)
 	if assert.Error(t, err) {
-		assert.IsType(t, &KeyNotFoundError{}, err)
+		assert.IsType(t, &KeyNotTraversableError{}, err)
 	}
 
 	err = UpdateJSON(td, []string{"mapVal", "new"}, json.RawMessage("bogus"), CreateOp)
@@ -880,11 +932,12 @@ func TestDeleteFails(t *testing.T) {
 	err = UpdateJSON(td, []string{"strVal"}, nil, DeleteOp)
 	if assert.Error(t, err) {
 		assert.IsType(t, &OperationForbiddenError{}, err)
+		assert.EqualError(t, err, "forbidden operation Delete on key strVal of type optikon.TypeDeep")
 	}
 
 	err = UpdateJSON(td, []string{"strVal", "bogus"}, nil, DeleteOp)
 	if assert.Error(t, err) {
-		assert.IsType(t, &KeyNotFoundError{}, err)
+		assert.IsType(t, &KeyNotTraversableError{}, err)
 	}
 
 	err = UpdateJSON(td, []string{"sliceVal"}, nil, DeleteOp)

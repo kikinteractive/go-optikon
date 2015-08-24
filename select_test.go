@@ -11,6 +11,7 @@ type TypeDeep struct {
 	IntVal int    `json:"intVal"`
 
 	MapVal         map[string]string             `json:"mapVal"`
+	MapIntVal      map[string]int                `json:"mapIntVal"`
 	PtrMapVal      *map[string]string            `json:"ptrMapVal"`
 	MapPtrVal      map[string]*string            `json:"mapPtrVal"`
 	MapMapVal      map[string]map[string]string  `json:"mapMapVal"`
@@ -620,11 +621,13 @@ func TestSelectFails(t *testing.T) {
 	_, err := Select(td, []string{"bogus"})
 	if assert.Error(t, err) {
 		assert.IsType(t, &KeyNotFoundError{}, err)
+		assert.EqualError(t, err, "key not found: bogus")
 	}
 
 	_, err = Select(td, []string{"strVal", "dummy"})
 	if assert.Error(t, err) {
 		assert.IsType(t, &KeyNotTraversableError{}, err)
+		assert.EqualError(t, err, "key not traversable: dummy")
 	}
 
 	_, err = Select(td, []string{"sliceVal", "x"})
