@@ -7,8 +7,9 @@ import (
 )
 
 type TypeDeep struct {
-	StrVal string `json:"strVal"`
-	IntVal int    `json:"intVal"`
+	StrVal   string `json:"strVal"`
+	IntVal   int    `json:"intVal"`
+	NoTagVal string
 
 	MapVal         map[string]string             `json:"mapVal"`
 	MapIntVal      map[string]int                `json:"mapIntVal"`
@@ -66,6 +67,11 @@ func TestSelectPrimitive(t *testing.T) {
 	partOut, err = Select(td, []string{"intVal"})
 	if assert.NoError(t, err) {
 		assert.Equal(t, td.IntVal, partOut)
+	}
+
+	partOut, err = Select(td, []string{"NoTagVal"})
+	if assert.NoError(t, err) {
+		assert.Equal(t, td.NoTagVal, partOut)
 	}
 }
 
@@ -622,12 +628,14 @@ func TestSelectFails(t *testing.T) {
 	if assert.Error(t, err) {
 		assert.IsType(t, &KeyNotFoundError{}, err)
 		assert.EqualError(t, err, "key not found: bogus")
+		assert.Equal(t, "bogus", err.(*KeyNotFoundError).Key())
 	}
 
 	_, err = Select(td, []string{"strVal", "dummy"})
 	if assert.Error(t, err) {
 		assert.IsType(t, &KeyNotTraversableError{}, err)
 		assert.EqualError(t, err, "key not traversable: dummy")
+		assert.Equal(t, "dummy", err.(*KeyNotTraversableError).Key())
 	}
 
 	_, err = Select(td, []string{"sliceVal", "x"})

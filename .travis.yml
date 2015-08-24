@@ -3,7 +3,7 @@ cache: apt
 
 language: go
 go:
-  - 1.4.1
+  - 1.5
 
 before_install:
   - go get github.com/axw/gocov/gocov

@@ -9,13 +9,15 @@ import (
 
 func TestCreatePrimitive(t *testing.T) {
 	strVal := "strVal1"
-	//intVal := 5
+	intVal := 5
 	td := &TypeDeep{}
 
 	data, _ := json.Marshal(strVal)
 	err := UpdateJSON(td, []string{"strVal"}, data, CreateOp)
 	if assert.Error(t, err) {
 		assert.IsType(t, &KeyExistsError{}, err)
+		assert.EqualError(t, err, "key exists: strVal")
+		assert.Equal(t, "strVal", err.(*KeyExistsError).Key())
 	}
 
 	err = UpdateJSON(td, []string{"mapVal", "key1"}, data, CreateOp)
@@ -23,6 +25,11 @@ func TestCreatePrimitive(t *testing.T) {
 		assert.Equal(t, strVal, td.MapVal["key1"])
 	}
 
+	data, _ = json.Marshal(intVal)
+	err = UpdateJSON(td, []string{"intVal"}, data, CreateOp)
+	if assert.Error(t, err) {
+		assert.IsType(t, &KeyExistsError{}, err)
+	}
 }
 
 func TestUpdatePrimitive(t *testing.T) {
@@ -31,8 +38,9 @@ func TestUpdatePrimitive(t *testing.T) {
 	intVal1 := 5
 	intVal2 := 15
 	td := &TypeDeep{
-		StrVal: strVal1,
-		IntVal: intVal1,
+		StrVal:   strVal1,
+		NoTagVal: strVal1,
+		IntVal:   intVal1,
 		MapVal: map[string]string{
 			"key1": strVal1,
 		},
@@ -46,6 +54,11 @@ func TestUpdatePrimitive(t *testing.T) {
 	err := UpdateJSON(td, []string{"strVal"}, data, UpdateOp)
 	if assert.NoError(t, err) {
 		assert.Equal(t, strVal2, td.StrVal)
+	}
+
+	err = UpdateJSON(td, []string{"NoTagVal"}, data, UpdateOp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, strVal2, td.NoTagVal)
 	}
 
 	err = UpdateJSON(td, []string{"mapVal", "key1"}, data, UpdateOp)
@@ -933,6 +946,9 @@ func TestDeleteFails(t *testing.T) {
 	if assert.Error(t, err) {
 		assert.IsType(t, &OperationForbiddenError{}, err)
 		assert.EqualError(t, err, "forbidden operation Delete on key strVal of type optikon.TypeDeep")
+		assert.Equal(t, "strVal", err.(*OperationForbiddenError).Key())
+		assert.Equal(t, "optikon.TypeDeep", err.(*OperationForbiddenError).KeyType().String())
+		assert.Equal(t, DeleteOp, err.(*OperationForbiddenError).Operation())
 	}
 
 	err = UpdateJSON(td, []string{"strVal", "bogus"}, nil, DeleteOp)
