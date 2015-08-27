@@ -1,3 +1,5 @@
+// Implemenentation of partial create/update/delete functionality for arbitrary Go
+// structures of any depth using relative path selectors.
 package optikon
 
 import (
@@ -38,13 +40,16 @@ func UpdateJSON(dataIn interface{}, path []string, dataJSON json.RawMessage, opT
 	case reflect.Array, reflect.Slice:
 		return traverseArraySlice(srcVal, path, dataJSON, opType)
 	case reflect.Ptr, reflect.Interface:
-		// srcVal already dereferenced, just call recursively.
+		// srcVal is already dereferenced, just call recursively.
 		return UpdateJSON(srcVal.Interface(), path, dataJSON, opType)
 	default:
 		return &KeyNotTraversableError{path[0]}
 	}
 }
 
+// traverseStruct will try to find if there's a struct field indexed by the first path element.
+// If there is, and there are more path elements, it will call UpdateJSON for recursive update.
+// If this is the last path element, it will try to handle it according to the OpType requested.
 func traverseStruct(srcVal reflect.Value, path []string, dataJSON json.RawMessage, opType OpType) error {
 	srcValType := srcVal.Type()
 	subPath := path[0]
@@ -101,6 +106,9 @@ func traverseStruct(srcVal reflect.Value, path []string, dataJSON json.RawMessag
 	return &KeyNotFoundError{subPath}
 }
 
+// traverseArraySlice will try to find if there's an array element indexed by the first path element.
+// If there is, and there are more path elements, it will call UpdateJSON for recursive update.
+// If this is the last path element, it will try to handle it according to the OpType requested.
 func traverseArraySlice(srcVal reflect.Value, path []string, dataJSON json.RawMessage, opType OpType) error {
 	srcValType := srcVal.Type()
 	subPath := path[0]
@@ -156,6 +164,9 @@ func traverseArraySlice(srcVal reflect.Value, path []string, dataJSON json.RawMe
 	return UpdateJSON(sliceElem.Addr().Interface(), path[1:], dataJSON, opType)
 }
 
+// traverseMap will try to find if there's an map value indexed by the first path element.
+// If there is, and there are more path elements, it will call UpdateJSON for recursive update.
+// If this is the last path element, it will try to handle it according to the OpType requested.
 func traverseMap(srcVal reflect.Value, path []string, dataJSON json.RawMessage, opType OpType) error {
 	srcValType := srcVal.Type()
 	subPath := path[0]
@@ -218,27 +229,29 @@ func traverseMap(srcVal reflect.Value, path []string, dataJSON json.RawMessage, 
 		}
 		srcVal.SetMapIndex(subPathVal, newMapVal.Elem())
 		return nil
-	} else { // no such key in map
-		if len(path) == 1 { // last element in the path
-			// On this stage, we can only create a new map entry.
-			// Updating and deleting will cause KeyNotFoundError.
-			if opType == CreateOp || opType == SetOp {
-				elType := srcValType.Elem()
-				// Create a new map element.
-				mapVal := reflect.New(elType)
-				// Update the newly created element.
-				if err := UpdateJSON(mapVal.Interface(), path[1:], dataJSON, opType); err != nil {
-					return err
-				}
-				// Alright, update the original map with the new element.
-				srcVal.SetMapIndex(subPathVal, mapVal.Elem())
-				return nil
+	}
+	// No such key in map.
+	if len(path) == 1 { // last element in the path
+		// On this stage, we can only create a new map entry.
+		// Updating and deleting will cause KeyNotFoundError.
+		if opType == CreateOp || opType == SetOp {
+			// Create a new map element.
+			newMapVal := reflect.New(srcValType.Elem())
+			// Update the newly created element.
+			if err := UpdateJSON(newMapVal.Interface(), path[1:], dataJSON, opType); err != nil {
+				return err
 			}
+			// Alright, update the original map with the new element.
+			srcVal.SetMapIndex(subPathVal, newMapVal.Elem())
+			return nil
 		}
 	}
 	return &KeyNotFoundError{subPath}
 }
 
+// mergeMaps merges the second map into the first one. If the second map has the same key,
+// its value will replace the original value in the first map. Otherwise, a new key/value
+// pair will be created in the first map.
 func mergeMaps(m1 reflect.Value, m2 reflect.Value) reflect.Value {
 	for _, k := range m2.MapKeys() {
 		m1.SetMapIndex(k, m2.MapIndex(k))

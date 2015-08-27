@@ -747,7 +747,7 @@ func TestUpdateFails(t *testing.T) {
 		"key1": strVal1,
 		"key2": strVal2,
 	}
-	td := TypeDeep{}
+	td := &TypeDeep{}
 
 	err := UpdateJSON(td, []string{"bogus"}, nil, UpdateOp)
 	if assert.Error(t, err) {
@@ -761,7 +761,7 @@ func TestUpdateFails(t *testing.T) {
 
 	err = UpdateJSON(td, []string{"strVal"}, json.RawMessage("strVal"), UpdateOp)
 	if assert.Error(t, err) {
-		//assert.IsType(t, &OperationForbiddenError{}, err) // TODO
+		assert.IsType(t, &json.SyntaxError{}, err) // TODO
 	}
 
 	err = UpdateJSON(td, []string{"sliceVal", "x"}, nil, UpdateOp)
@@ -774,8 +774,9 @@ func TestUpdateFails(t *testing.T) {
 		assert.IsType(t, &KeyNotFoundError{}, err)
 	}
 
-	// TODO: update on empty map results in keynotfound error? Or results in create?
-	//err = UpdateJSON(td, []string{"mapVal"}, `{"key1":"bogus"}`, UpdateOp)
+	// TODO: update on empty map to result in KeyNotFoundError? Currently works as Create.
+	//data, _ := json.Marshal(mapVal)
+	//err = UpdateJSON(td, []string{"mapVal"}, data, UpdateOp)
 	//if assert.Error(t, err) {
 	//	assert.IsType(t, &KeyNotFoundError{}, err)
 	//}
@@ -966,7 +967,7 @@ func TestCreateSuccessful(t *testing.T) {
 		assert.EqualValues(t, append(sliceVal0, sliceVal...), td.SliceSliceVal[0])
 	}
 
-	/* TODO
+	/* TODO: handle pointers to slices.
 	err = UpdateJSON(td, []string{"slicePtrSliceVal", "0"}, data, CreateOp)
 	if assert.NoError(t, err) {
 		assert.EqualValues(t, append(sliceVal0, sliceVal...), td.SlicePtrSliceVal[0])
@@ -990,7 +991,7 @@ func TestCreateSuccessful(t *testing.T) {
 		assert.EqualValues(t, append(sliceVal0, sliceVal...), td.MapSliceVal["key1"])
 	}
 
-	/* TODO
+	/* TODO: handle pointers to slices.
 	err = UpdateJSON(td, []string{"mapPtrSliceVal", "key1"}, data, CreateOp)
 	if assert.NoError(t, err) {
 		assert.EqualValues(t, &sliceVal, td.MapPtrSliceVal["key1"])
@@ -1058,11 +1059,8 @@ func TestSetSuccessful(t *testing.T) {
 }
 
 func TestSetFails(t *testing.T) {
-	//strVal0 := "strVal0"
 	strVal1 := "strVal1"
 	strVal2 := "strVal2"
-	//sliceVal0 := []string{strVal0}
-	//sliceSliceVal0 := [][]string{sliceVal0}
 	mapVal := map[string]string{
 		"key1": strVal1,
 		"key2": strVal2,
@@ -1342,6 +1340,8 @@ func TestDeleteSuccessful(t *testing.T) {
 
 	// Two levels.
 
+	// TODO: can actually handle deleting indexed elements in the slice, but the
+	// delete should probably be done by value and not by index.
 	//err = UpdateJSON(td, []string{"sliceIntfVal", "0"}, nil, DeleteOp)
 	//if assert.NoError(t, err) {
 	//	assert.Equal(t, 1, len(td.SliceIntfVal))
@@ -1393,5 +1393,4 @@ func TestDeleteSuccessful(t *testing.T) {
 		_, ok := td.MapPtrDeep["key2"].MapVal["key2"]
 		assert.False(t, ok)
 	}
-
 }

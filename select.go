@@ -1,3 +1,5 @@
+// Implemenentation of partial data extraction for arbitrary Go
+// structures of any depth using relative path selectors.
 package optikon
 
 import (
