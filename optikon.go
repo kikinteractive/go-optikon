@@ -1,18 +1,31 @@
+// Package optikon provides a way to manipulate deep Go structures using
+// simple relative path selectors.
 package optikon
+
+import "fmt"
 
 // OpType defines possible operation types.
 type OpType int
 
 // OpType enumerates available operation types.
 const (
-	CreateOp OpType = iota + 1
-	UpdateOp
-	DeleteOp
+	CreateOp OpType = 0x1
+	UpdateOp OpType = 0x2
+	SetOp    OpType = CreateOp | UpdateOp
+	DeleteOp OpType = 0x4
 )
 
-// OpNames provides readable names for operation types.
-var OpNames = map[OpType]string{
-	CreateOp: "Create",
-	UpdateOp: "Update",
-	DeleteOp: "Delete",
+func (t OpType) String() string {
+	switch t {
+	case CreateOp:
+		return "Create"
+	case UpdateOp:
+		return "Update"
+	case SetOp:
+		return "Set"
+	case DeleteOp:
+		return "Delete"
+	default:
+		panic(fmt.Sprintf("operation type not known: %d", t))
+	}
 }

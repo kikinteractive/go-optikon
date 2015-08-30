@@ -59,7 +59,7 @@ type OperationForbiddenError struct {
 
 // Error implements error interface, stating that key was not found.
 func (e *OperationForbiddenError) Error() string {
-	return fmt.Sprintf("forbidden operation %s on key %s of type %s", OpNames[e.operation], e.key, e.keyType)
+	return fmt.Sprintf("forbidden operation %s on key %s of type %s", e.operation, e.key, e.keyType)
 }
 
 // Key returns the key that was operated on.
