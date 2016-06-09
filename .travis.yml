@@ -15,6 +15,3 @@ install:
 
 script:
   - go test -v -cover 
-
-after_success:
-  - $HOME/gopath/bin/goveralls -service=travis-ci
